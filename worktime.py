@@ -1,8 +1,14 @@
 from datetime import datetime, timedelta
+import os
 import statistics as stats
 
 import openpyxl
 from winevt import EventLog
+
+inputfile = 'C:\\Users\\S1024501\\OneDrive - Syngenta\\Documents\\Documents\\Timesheet.xlsx'
+
+def openTimesheet(my_wb = inputfile):
+    os.system(f'start excel "{my_wb}"')
 
 def printerrordates():
     for d in lod:
@@ -23,7 +29,10 @@ def datestring(date):
     return value
 
 def totime(time):
-    value = datetime.strptime(time, '%H:%M:%S.%fZ')
+    try:
+        value = datetime.strptime(time, '%H:%M:%S.%fZ')
+    except ValueError:
+        value = datetime.strptime(time, '%H:%M:%S.%f')
     return value
 
 def ss_tohhmm(seconds):
@@ -80,19 +89,35 @@ for d in lod:
     thisdate = datestring(d['date'])
     firstwtime, firststime = 0, 0
     if d['wakelist']:
-        firstwtime = datetime.strptime(d['wakelist'][0], '%H:%M:%S.%fZ')
+        try:
+            firstwtime = datetime.strptime(d['wakelist'][0], '%H:%M:%S.%fZ')
+        except ValueError:
+            firstwtime = datetime.strptime(d['wakelist'][0], '%H:%M:%S.%f')
     if d['sleeplist']:
-        firststime = datetime.strptime(d['sleeplist'][0], '%H:%M:%S.%fZ')
+        try:
+            firststime = datetime.strptime(d['sleeplist'][0], '%H:%M:%S.%fZ')
+        except ValueError:
+            firststime = datetime.strptime(d['sleeplist'][0], '%H:%M:%S.%f')
     if len(d['wakelist']) == len(d['sleeplist']) and not (firststime - firstwtime).days: # if firststime is after firstwtime: else days = -1
         for n, wtime in enumerate(d['wakelist']):
             if not (totime(d['sleeplist'][n]) - totime(wtime)).days:
                 d['totaltime'] += (totime(d['sleeplist'][n]) - totime(wtime)).seconds
-    elif len(d['sleeplist']) - len(d['wakelist']) == 1 and (firststime - firstwtime).days == -1: # if firststime is between midnight and waking
-        for n, wtime in enumerate(d['wakelist']):
-            d['totaltime'] += (totime(d['sleeplist'][n+1]) - totime(wtime)).seconds # remove firststime from effective sleeplist
+    elif len(d['sleeplist']) - len(d['wakelist']) == 1:
+        try:
+            if (firststime - firstwtime).days == -1: # if firststime is between midnight and waking
+                for n, wtime in enumerate(d['wakelist']):
+                    d['totaltime'] += (totime(d['sleeplist'][n+1]) - totime(wtime)).seconds # remove firststime from effective sleeplist
+        except TypeError:
+            pass # something went wrong. eg: one time was reset to epoch
     elif len(d['wakelist']) - len(d['sleeplist']) == 1 and d['sleeplist']:
-        lastwtime = datetime.strptime(d['wakelist'][-1], '%H:%M:%S.%fZ')
-        laststime = datetime.strptime(d['sleeplist'][-1], '%H:%M:%S.%fZ')
+        try:
+            lastwtime = datetime.strptime(d['wakelist'][-1], '%H:%M:%S.%fZ')
+        except ValueError:
+            lastwtime = datetime.strptime(d['wakelist'][-1], '%H:%M:%S.%f')
+        try:
+            laststime = datetime.strptime(d['sleeplist'][-1], '%H:%M:%S.%fZ')
+        except ValueError:
+            laststime = datetime.strptime(d['sleeplist'][-1], '%H:%M:%S.%f')
         if (lastwtime - laststime).days == 0:
             for n, stime in enumerate(d['sleeplist']):
                 d['totaltime'] += (totime(stime) - totime(d['wakelist'][n])).seconds # remove lastwtime from effective wakelist
@@ -110,9 +135,8 @@ hours, mins = ss_tohhmm(stats.mean(averageweekday))
 print(f'\nAverage time per weekday:\t{hours} h {mins:02d} mins\n')
 
 # Load timesheet
-inputfile = 'C:\\Users\\S1024501\\OneDrive - Syngenta\\Documents\\Documents\\Timesheet.xlsx'
 wb = openpyxl.load_workbook(filename = inputfile, data_only = True)
-ws = wb['Full']
+ws = wb['2022']
 
 weeklist = []
 max_row = ws.max_row
